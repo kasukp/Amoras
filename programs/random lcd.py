@@ -31,7 +31,7 @@ async def draw_image():
                 else:
                     pass
             await asyncio.sleep(0.017)
-
+#
 async def display_loop():
     while True:
         display.fill(0)

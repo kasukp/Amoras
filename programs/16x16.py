@@ -56,7 +56,6 @@ async def display_loop():
         await asyncio.sleep(0.017)
         display.show()
         
-
 class Cursor():
     def __init__(self, x = 0, y = 0, color = colour(0,0,0)):
         self.x = x

@@ -2,8 +2,7 @@ from machine import Pin
 import LCD
 from colour import colour
 import asyncio
-import framebuf
-import utime
+import time
 import math
 
 display = LCD.LCD_1inch3()
@@ -19,8 +18,10 @@ paintButton = Pin(22, Pin.IN, Pin.PULL_UP)
 last_paint_time = 0
 debounce = 250
 
+
+# Buttons are temporarily incorrectly assigned for lack of components
 def handle_interrupt(pin):
-    current_time = utime.ticks_ms()
+    current_time = time.ticks_ms()
     if pin == upButton:
         cursor.move("right")
     elif pin == downButton:
@@ -30,10 +31,10 @@ def handle_interrupt(pin):
     elif pin == rightButton:
         cursor.set("delete")
     elif pin == paintButton:
-        if utime.ticks_diff(current_time, last_paint_time) > debounce:
+        if time.ticks_diff(current_time, last_paint_time) > debounce:
             print("hey listen")
         else:
-            print("fuck")
+            print("")
 
 
 upButton.irq(trigger=Pin.IRQ_RISING, handler=handle_interrupt)
@@ -49,8 +50,9 @@ async def display_loop():
             if not color:
                 pass
             else:
+                x_pos, y_pos = divmod(idx,16)
                 rgb_color = hsv_to_rgb(color[0], color[1], color[2])
-                display.rect((idx//16*16), (idx%16*16), 15, 15, rgb_color, True)
+                display.rect((x_pos*16), (y_pos*16), 15, 15, rgb_color, True)
         await asyncio.sleep(0.017)
         display.show()
         
@@ -70,12 +72,12 @@ class Cursor():
         elif direction == "down":
             if self.y < 14:
                 self.y += 1
-            else: self.y = 14
+            else: self.y = 0
 
         elif direction == "left":
             if self.x > 0:
                 self.x -= 1
-            else: self.x = 0
+            else: self.x = 14
 
         elif direction == "right":
             if self.x < 14:
@@ -113,10 +115,6 @@ class Display():
         return self.pixels[cursor.x * 16 + cursor.y]
         
 
-
-        
-
-
 def hsv_to_rgb(h,s,v):
     r,g,b = 0,0,0
     
@@ -142,11 +140,17 @@ def hsv_to_rgb(h,s,v):
     # return [r * 255, g * 255, b * 255]
     return colour(r * 255, g * 255, b * 255)
 
+def draw_rainbow():
+    for i in range(16):
+        for j in range(16):
+            display.rect(i*16,j*16,15,15,hsv_to_rgb(i/16,1,1),True)
 
-cursor = Cursor(0,14)
-screen = Display()
+
 async def main():
     global cursor
+    global screen
+    cursor = Cursor(0,14)
+    screen = Display()
     await asyncio.gather(cursor.draw(), display_loop())
     
 

@@ -2,7 +2,6 @@ from machine import Pin, ADC
 import LCD
 from colour import colour
 import asyncio
-import time
 import math
 import sys
 
@@ -11,9 +10,6 @@ print(sys.version)
 hue_potentiometer = ADC(26)
 analog_x = ADC(27)
 analog_y = ADC(28)
-# while True:
-#     print(f"\rX = {analog_x.read_u16()}\n\rY = {analog_y.read_u16()}\n\r{hue_potentiometer.read_u16()}")
-#     time.sleep(0.05)
 
 display = LCD.LCD_1inch3()
 display.fill(0)
@@ -28,67 +24,43 @@ analog_button = Pin(16, Pin.IN, Pin.PULL_UP)
 
 last_paint_time = 0
 debounce = 250
-
-def read_analog_stick(x, y, filter):
-    return [x.read_u16() / 65536, y.read_u16() / 65536]
-    # while True:
-    #     x_list, y_list = list(), list()
-    #     for i in range(filter):
-    #         x_list.append(x.read_u16() / 65536)
-    #         y_list.append(y.read_u16() / 65536)
-    #     x_out = sum(x_list) / filter
-    #     y_out = sum(y_list) / filter
-    #     asyncio.sleep(0.3)
-    #     yield [x_out, y_out]
         
     
 async def read_cursor():
+    counter = 0
     while True:
         read = [analog_x.read_u16() / 65536, analog_y.read_u16() / 65536]
-        print(f"\r{read}", end="")
-        await asyncio.sleep(0.02)
-        if not analog_button.value():
-            prev_x, prev_y = cursor.x, cursor.y
-            print(prev_x, cursor.x)
-            while prev_x == cursor.x and prev_y == cursor.y:
-                cursor.set(0, hue_potentiometer.read_u16() / 65536)
-                await asyncio.sleep(0.02)
-
-
+        await asyncio.sleep(0.01)
+        counter += 1
+        print(counter)
+        await get_analog_button()
         if read[0] > 0.8:
-            cursor.move("left")
+            await cursor.move("down")
+            asyncio.sleep(1)
         elif read[0] < 0.2:
-            cursor.move("right")
+            await cursor.move("up")
+            asyncio.sleep(1)
         if read[1] > 0.8:
-            cursor.move("up")
+            await cursor.move("right")
+            asyncio.sleep(1)
         elif read[1] < 0.2:
-            cursor.move("down")
-        await asyncio.sleep(0.2)
-            
-
-
-
-# Buttons are temporarily incorrectly assigned for lack of components
-async def handle_interrupt(pin):
-    if pin == upButton:
-        cursor.move("right")
-    elif pin == downButton:
-        cursor.move("up")
-    elif pin == leftButton:
-        cursor.set("hueUP")
-    elif pin == rightButton:
-        cursor.set("delete")
-    
-
-
+            await cursor.move("left")
+            asyncio.sleep(1)
+        await asyncio.sleep(0.01)
         
-    
-
-
-upButton.irq(trigger=Pin.IRQ_RISING, handler=handle_interrupt)
-downButton.irq(trigger=Pin.IRQ_RISING, handler=handle_interrupt)
-leftButton.irq(trigger=Pin.IRQ_RISING, handler=handle_interrupt)
-rightButton.irq(trigger=Pin.IRQ_RISING, handler=handle_interrupt)
+        
+async def get_analog_button():
+    paint_mode = False
+    while True:
+        if not analog_button.value():
+            paint_mode = not paint_mode
+            print(paint_mode)
+            await asyncio.sleep(0.1)
+        if paint_mode:
+            cursor.set(0, hue_potentiometer.read_u16() / 65536)
+        await asyncio.sleep(0.05)
+        break
+        
 
 async def hue_selector():
     while True:
@@ -98,6 +70,7 @@ async def hue_selector():
         hue = sum(hue_list) / 50
         #print(f"\r{hue:<3}", end="")
         await asyncio.sleep(0.05)
+
 
 async def display_loop():
     while True:
@@ -118,7 +91,7 @@ class Cursor():
         self.y = y
         self.color = color
     
-    def move(self, direction):
+    async def move(self, direction):
         if direction == "up":
             if self.y > 0:
                 self.y -= 1
@@ -138,6 +111,7 @@ class Cursor():
             if self.x < 14:
                 self.x += 1
             else: self.x = 0
+        await asyncio.sleep(0.2)
 
     def set(self, set, pot):
         print(screen.get_color())
@@ -172,7 +146,8 @@ class Display():
     def get_color(self):
         return self.pixels[cursor.x * 16 + cursor.y]
         
-
+# adapted from:
+# https://github.com/bottosson/bottosson.github.io/blob/master/misc/colorpicker/colorconversion.js
 def hsv_to_rgb(h,s,v):
     r,g,b = 0,0,0
     
@@ -198,6 +173,8 @@ def hsv_to_rgb(h,s,v):
     # return [r * 255, g * 255, b * 255]
     return colour(r * 255, g * 255, b * 255)
 
+
+# testing fn
 def draw_rainbow():
     for i in range(16):
         for j in range(16):
@@ -213,7 +190,5 @@ async def main():
     await asyncio.gather(cursor.draw(), read_cursor(), hue_selector(), display_loop())
     
     
-
-
 if __name__ == "__main__":
     asyncio.run(main())
